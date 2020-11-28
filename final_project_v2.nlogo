@@ -7,7 +7,7 @@ breed [staff staffmember]
 turtles-own [
   destination ; now this is still a particular patch at the main entrance
   path-to-exit ; based on Dijkstra algorithm of shortest path
-  previous-patch
+  ;previous-patch
 ]
 
 globals [
@@ -30,7 +30,7 @@ to setup
   set p-valids patches with [(pcolor > 8 and pcolor < 20) or (pcolor > 80 and pcolor < 110)]
   ask turtles [choose-destination]
   ask turtles [choose-path destination]
-  ask turtles [set previous-patch patch-here]
+  ;ask turtles [set previous-patch patch-here]
   reset-ticks
 end
 
@@ -56,7 +56,7 @@ to walk-out
   ;face one-of neighbors with [(member? self [path-to-exit] of myself)]
   ;face max-one-of (neighbors with [member? self path]) [dijkstra-dist] ;face one of the patches around you that is in your route to the exits and has the lowest distance to the door (not where you just came from)
     face min-one-of (neighbors with [(member? self [path-to-exit] of myself)]) [abs-hdiff myself self]
-    set path-to-exit (patch-set path-to-exit with [self != [patch-here] of myself])
+    ;set path-to-exit (patch-set path-to-exit with [self != [patch-here] of myself])
   fd 1
   ]
 end
@@ -79,11 +79,11 @@ to choose-path [endgoal]
       set p newp ]
   let path patch-set endgoal ; start with your destination
   while [not member? patch-here path] ; as long as you are not back at where you are standing now, keep going
-      [ let newpath patch-set ([one-of neighbors with [ dijkstra-dist = -1 + [dijkstra-dist] of (min-one-of path [dijkstra-dist])] ] of path) ;add a patch to the path that is one step closer to you
+      [ let newpath patch-set ([one-of neighbors with [( dijkstra-dist = -1 + [dijkstra-dist] of (min-one-of path [dijkstra-dist])) and (count neighbors with [member? self path] = 1)] ] of path) ;add a patch to the path that is one step closer to you
         let oldpath path
         set path (patch-set oldpath newpath) ; add this patch to your path
         ]
-  ask path [set pcolor green] ; this highlights your path in green, only works with 1 turtle
+  ;ask path [set pcolor green] ; this highlights your path in green, only works with 1 turtle
   ;show path ; this shows the length of the path
   set path-to-exit path
 
@@ -92,8 +92,8 @@ end
 GRAPHICS-WINDOW
 187
 -140
-901
-549
+1002
+654
 -1
 -1
 0.7
@@ -188,7 +188,7 @@ Population_visitors
 Population_visitors
 0
 500
-1.0
+3.0
 1
 1
 NIL
@@ -203,7 +203,7 @@ Population_staff
 Population_staff
 0
 100
-0.0
+1.0
 1
 1
 NIL
