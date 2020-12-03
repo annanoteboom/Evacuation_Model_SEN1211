@@ -29,119 +29,8 @@ to setup
     set size 5]]  ;; easier to see]]
   ask n-of population_staff patches with [pcolor = 9.9 or pcolor = 63.6 or pcolor = 25.6 or pcolor = 84.5 or pcolor = 14.8 or pcolor = 28.7 or pcolor = 87 or pcolor = 72.1] [sprout-staff 1[ set color red - 2 + random 7  ;; random shades look nice
     set size 5]]  ;; easier to see]]
-  ; all patches that are white, red or blue are allowed to stand on
-  set p-valids patches with [pcolor = 9.9 or pcolor = 25.6 or pcolor = 84.5]
   ask turtles [choose-destination set key-patch patch 0 0]
-  ;ask turtles [choose-path destination]
-  ;ask turtles [set previous-patch patch-here]
   reset-ticks
-end
-
-to go
-  ask turtles [set current-patch-color [pcolor] of patch-here]
-  ask turtles [walk-out]
-  ;ask turtles [show current-patch-color]
-  if ticks > 600 [write "it is taking to long, everyone still in the building is dead now" stop]
-  if not any? turtles [ stop ]
-  tick ; next time step
-end
-
-to check-for-walls
-   if count patches in-cone 10 30 with [pcolor = 0 or pcolor = 125.8 or pcolor = 25.6 or pcolor = 103.5] > 0
-    [ rt (random 180 - 90)
-      ifelse current-patch-color = 9.9  [ ; if you are in the main hall, walk around the front desk
-       while [[pcolor] of patch-ahead 2 = 0 or [pcolor] of patch-ahead 2 = 125.8 or [pcolor] of patch-ahead 1 = 25.6 or [pcolor] of patch-ahead 2 = 103.5 or [pcolor] of patch-ahead 1 = 103.5 or [pcolor] of patch-ahead 2 = 25.6 or [pcolor] of patch-ahead 1 = 0 or [pcolor] of patch-ahead 1 = 125.8]
-        [rt (random 360 - 180)] ] [
-      while [[pcolor] of patch-ahead 2 = 0 or [pcolor] of patch-ahead 2 = 125.8 or [pcolor] of patch-ahead 1 = 0 or [pcolor] of patch-ahead 1 = 125.8]
-          [rt (random 360 - 180)] ]
-  ]
-end
-
-to walk-out
-  ; perhaps quicker if we make this one big elif
-  if current-patch-color = 9.9 [ifelse (pycor > 144 and pxcor > 125 and pxcor < 140) [face patch 138 141 check-for-walls fd 1] [
-    face destination check-for-walls fd 1]] ; if you are in the main hall
-  if current-patch-color = 84.5 [ifelse one-of neighbors with [pcolor = 9.9] != nobody [face min-one-of (neighbors with [pcolor = 9.9 or pcolor = 118.1]) [abs-hdiff myself self] fd 1] [fd 1]] ; if you are in a doorway
-  if current-patch-color = 103.5 [fd 0.5] ; you are on stairs and can only walk half as fast
-  if current-patch-color = 14.8 [set turtles-safe (turtles-safe + 1) die] ; if you are at an exit
-  if current-patch-color = 106.5 [face patch 18 161 check-for-walls fd 1] ; if you are in the blue room
-  if current-patch-color = 125.7 [(ifelse [pycor] of patch-here >= 100 [ ;if you are in the purple hallway
-    face patch 155 170 check-for-walls fd 1] ([pycor] of patch-here < 100)[
-    ifelse patch-here = patch 178 75 ; if you are in the purple room but not in the hallway first go to a bit before the door and then through the door
-    [set key-patch patch 178 75 face patch 168 70 check-for-walls] [ifelse key-patch = patch 178 75 [face patch 168 70] [face patch 178 75]] fd 1]
-    )]
-  if current-patch-color = 44.9 [face patch 203 35 check-for-walls fd 1] ; if you are in the yellow room
-  if current-patch-color = 12.6 [face patch 148 111 check-for-walls fd 1] ; if you are in the bourdeaux room
-  if current-patch-color = 118.1 [face patch 110 149 check-for-walls fd 1] ; if you are in the cafeteria
-  if current-patch-color = 137.1 [(ifelse pycor > 123  [ ; if you are in one of the project rooms
-    face patch 30 125 check-for-walls fd 1] pycor > 103 [
-    face min-one-of (patch-set patch 31 114 patch 31 105) [distance myself]] pycor > 85 [
-    face min-one-of (patch-set patch 32 96 patch 32 87) [distance myself]] pycor > 66 [
-    face min-one-of (patch-set patch 33 78 patch 34 69) [distance myself]] pycor > 57 [
-    face patch 36 59 check-for-walls fd 1] [face patch 36 50 check-for-walls fd 1])
-    fd 1]
-
-  if current-patch-color = 25.6 [(ifelse ycor < 23 [
-    (ifelse xcor < 47 [face patch 44 23]
-      xcor < 79 [face patch 67 23]
-      xcor < 111 [face patch 87 23]
-      xcor < 120 [face patch 113 23]
-      xcor < 130 [face patch 123 23]
-      xcor < 140 [face patch 138 23]
-      [face patch 165 23])]
-    ycor < 13 and xcor < 182 [face patch 180 13]
-    ycor < 13 and xcor < 195 [face patch 184 13]
-    xcor < 179 [face patch 180 20]
-    xcor < 195 [face patch 180 23]
-    [face patch 195 32])
-    check-for-walls fd 1]
-
-  ifelse current-patch-color = 25.6 and ycor < 23 and xcor < 47 [face patch 44 23 check-for-walls fd 1][
-  ifelse current-patch-color = 25.6 and ycor < 23 and xcor > 47 and xcor < 79 [ face patch 67 23 check-for-walls fd 1]
-  [ifelse current-patch-color = 25.6 and ycor < 23 and xcor > 79 and xcor < 111 [ face patch 87 23 check-for-walls fd 1]
-  [ifelse current-patch-color = 25.6 and ycor < 23 and xcor > 111 and xcor < 120 [ face patch 113 23 check-for-walls fd 1]
-  [ifelse current-patch-color = 25.6 and ycor < 23 and xcor > 120 and xcor < 130 [ face patch 123 23 check-for-walls fd 1]
-  [ifelse current-patch-color = 25.6 and ycor < 23 and xcor > 130 and xcor < 140 [ face patch 138 23 check-for-walls fd 1]
-  [ifelse current-patch-color = 25.6 and ycor < 23 and xcor > 140 and xcor < 168 [ face patch 165 23 check-for-walls fd 1]
-  [ifelse current-patch-color = 25.6 and ycor < 13 and xcor > 168 and xcor < 182 [ face patch 180 13 check-for-walls fd 1]
-  [ifelse current-patch-color = 25.6 and ycor < 13 and xcor > 182 and xcor < 195 [ face patch 183 13 check-for-walls fd 1]
-  [ifelse current-patch-color = 25.6 and ycor > 13 and ycor < 23 and xcor > 168 and xcor < 195 [ face patch 180 23 check-for-walls fd 1]
-  [ifelse current-patch-color = 25.6 and ycor < 29 and xcor > 194 and xcor < 207 [ face patch 194 26 check-for-walls fd 1]
-  [if current-patch-color = 25.6 and ycor > 30 and ycor < 34  and xcor > 195 and xcor < 199 [ face patch 195 32 check-for-walls fd 1]
-  ]]]]]]]]]]]
-
-  ;code for when staff people are in the dark green rooms
-    ifelse current-patch-color = 72.1 and xcor < 75 [face patch 65 30 check-for-walls fd 1][
-  ifelse current-patch-color = 72.1 and xcor > 75 and xcor < 84 [ face patch 82 30 check-for-walls fd 1]
-  [ifelse current-patch-color = 72.1 and xcor > 84 and xcor < 105 [ face patch 96 30 check-for-walls fd 1]
-  [ifelse current-patch-color = 72.1 and xcor > 105 and xcor < 120 [ face patch 113 30 check-for-walls fd 1]
-  [ifelse current-patch-color = 72.1 and xcor > 120 and xcor < 127 [ face patch 126 30 check-for-walls fd 1]
-  [ifelse current-patch-color = 72.1 and xcor > 127 and xcor < 149 [ face patch 137 30 check-for-walls fd 1]
-  [ifelse current-patch-color = 72.1 and xcor > 149 and xcor < 159 [ face patch 152 30 check-for-walls fd 1]
-  [ifelse current-patch-color = 72.1 and xcor > 159 and xcor < 177 [ face patch 165 30 check-for-walls fd 1]
-  [ifelse current-patch-color = 72.1 and xcor > 177 and xcor < 184 [ face patch 179 30 check-for-walls fd 1]
-  [if current-patch-color = 72.1 and xcor > 184 and xcor < 189 [ face patch 185 30 check-for-walls fd 1]
-  ]]]]]]]]]
-
-  ;Code for when staff are on their toilets
-  ifelse current-patch-color = 63.6 and ycor < 35 and xcor < 75 [ face patch 65 30 check-for-walls fd 1]
-  [if current-patch-color = 63.6 and ycor < 35 and xcor > 75   [ face patch 82 30 check-for-walls fd 1]
-  ]
-
-  if current-patch-color = 0 [rt 150 fd 2]
-
-  if current-patch-color = 87 [ifelse pxcor < 40 [face patch 34 160 check-for-walls fd 1] [face patch 82 159 fd 1]] ; blue hallway at the north side
-
-  if current-patch-color = 35.6 or current-patch-color = 63.6 [(ifelse pycor > 170 and pxcor < 63 [ifelse pxcor < 48 [ ;brown rooms at the north side
-    face patch 48 175 check-for-walls fd 1] [face patch 60 169 check-for-walls fd 1] ] pycor > 164 and pxcor < 79 [
-    face patch 63 167 check-for-walls fd 1] pycor > 162 [
-    face patch 79 162 check-for-walls fd 1] [face min-one-of (patches with [pcolor = 84.5 and pxcor > 49 and pxcor < 86]) [distance myself] check-for-walls fd 1]
-    )]
-
-  if current-patch-color = 44.3 [face patch 141 120 check-for-walls fd 1]
-
-  if current-patch-color = 28.7 [ifelse pxcor < 115 [face patch 39 27] [ifelse pxcor < 191 [face patch 191 27] [face patch 191 35]] check-for-walls fd 1]
-
 end
 
 to choose-destination
@@ -149,11 +38,135 @@ to choose-destination
   set destination one-of patches with [pcolor = 14.8 and pxcor > 110 and pxcor < 130]
 end
 
+to go
+  ask turtles [set current-patch-color [pcolor] of patch-here]
+  ; first three minutes everybody just walks randomly, then the alarm goes off
+  ifelse ticks < 30 [ask turtles [walk-randomly]] [ask turtles [walk-out]]
+
+  if ticks > 600 [write "it is taking to long, everyone still in the building is dead now" stop]
+  if not any? turtles [ stop ]
+  tick ; next time step
+end
+
+to walk-randomly
+  (ifelse
+  ; when you are accidentilly in a wall on a staircase or in pink furniture or in the middle of the balie
+  current-patch-color = 0 or current-patch-color = 4.5 or current-patch-color = 125.8 [rt 150 fd 2]
+  ; at an exit
+  current-patch-color = 14.8 [set turtles-safe (turtles-safe + 1) die]
+    [rt (random 100 - 50) check-for-walls fd 1])
+
+end
+
+to walk-out
+
+  (ifelse
+
+  ;; common spaces
+
+  ; main hall
+  current-patch-color = 9.9 [ifelse (pycor > 144 and pxcor > 125 and pxcor < 140) [face patch 138 141 check-for-walls fd 1] [
+    face destination check-for-walls fd 1]]
+  ; blue hallway at the north side
+  current-patch-color = 87 [ifelse pxcor < 40 [face patch 34 160 check-for-walls fd 1] [face patch 82 159 fd 1]]
+  ;brown rooms and toilets at the north side
+  current-patch-color = 35.6 or current-patch-color = 63.6 [(ifelse pycor > 170 and pxcor < 63 [ifelse pxcor < 48 [
+    face patch 48 175 check-for-walls fd 1] [face patch 60 169 check-for-walls fd 1] ] pycor > 164 and pxcor < 79 [
+    face patch 63 167 check-for-walls fd 1] pycor > 162 [
+    face patch 79 162 check-for-walls fd 1] [face min-one-of (patches with [pcolor = 84.5 and pxcor > 49 and pxcor < 86]) [distance myself] check-for-walls fd 1]
+    )]
+  ; yellow room at the north side
+  current-patch-color = 44.3 [face patch 141 120 check-for-walls fd 1]
+
+  ; blue room
+  current-patch-color = 106.5 [face patch 18 161 check-for-walls fd 1]
+  ; purple hallway
+  current-patch-color = 125.7 [(ifelse [pycor] of patch-here >= 100 [
+    face patch 155 170 check-for-walls fd 1] ([pycor] of patch-here < 100)[
+    ifelse patch-here = patch 178 75
+  ; purple room but not in the hallway first go to a bit before the door and then through the door
+    [set key-patch patch 178 75 face patch 168 70 check-for-walls] [ifelse key-patch = patch 178 75 [face patch 168 70] [face patch 178 75]] fd 1]
+    )]
+  ; yellow room at the south side
+  current-patch-color = 44.9 [face patch 203 35 check-for-walls fd 1]
+  ; bourdeaux room
+  current-patch-color = 12.6 [face patch 148 111 check-for-walls fd 1]
+  ; cafeteria
+  current-patch-color = 118.1 [face patch 110 149 check-for-walls fd 1]
+  ; pink project rooms
+  current-patch-color = 137.1 [(ifelse pycor > 123  [
+    face patch 30 125 check-for-walls fd 1] pycor > 103 [
+    face min-one-of (patch-set patch 31 114 patch 31 105) [distance myself]] pycor > 85 [
+    face min-one-of (patch-set patch 32 96 patch 32 87) [distance myself]] pycor > 66 [
+    face min-one-of (patch-set patch 33 78 patch 34 69) [distance myself]] pycor > 57 [
+    face patch 36 59 check-for-walls fd 1] [face patch 36 50 check-for-walls fd 1])
+    fd 1]
+
+  ;; staff spaces
+
+  ; orange rooms
+  current-patch-color = 25.6 [(ifelse ycor < 23 [
+    (ifelse xcor < 47 [face patch 44 23]
+      xcor < 79 [face patch 67 23]
+      xcor < 111 [face patch 87 23]
+      xcor < 120 [face patch 113 23]
+      xcor < 130 [face patch 123 23]
+      xcor < 140 [face patch 138 23]
+      xcor < 168 [face patch 165 23]
+    ycor < 13 and xcor < 182 [face patch 180 13 ]
+    ycor < 13 and xcor < 195 [face patch 184 13 ]
+    xcor < 179 [face patch 180 20 ]
+    xcor < 195 [face patch 180 23 ] )]
+    [face patch 195 32 ])
+    check-for-walls fd 1]
+  ; dark green rooms
+  current-patch-color = 72.1 [(ifelse xcor < 75 [face patch 65 30]
+    xcor < 84 [ face patch 82 30]
+    xcor < 105 [ face patch 96 30]
+    xcor < 120 [ face patch 113 30]
+    xcor < 127 [ face patch 126 30]
+    xcor < 149 [ face patch 137 30]
+    xcor < 159 [ face patch 152 30]
+    xcor < 177 [ face patch 165 30]
+    xcor < 184 [ face patch 179 30]
+    [face patch 185 30]) check-for-walls fd 1]
+  ; staff toilets
+  current-patch-color = 63.6 [ifelse ycor < 35 and xcor < 75 [ face patch 65 30 check-for-walls fd 1]
+      [if ycor < 35   [ face patch 82 30 check-for-walls fd 1]]]
+  ; code for staff when in the pink hallway
+  current-patch-color = 28.7 [ifelse pxcor < 115 [face patch 39 27] [ifelse pxcor < 191 [face patch 191 27] [face patch 191 35]] check-for-walls fd 1]
+
+  ;; special spaces
+
+  ; when you are accidentilly in a wall on a staircase or in pink furniture or in the middle of the balie
+  current-patch-color = 0 or current-patch-color = 4.5 or current-patch-color = 125.8 [rt 150 fd 2]
+  ; in a doorway
+  current-patch-color = 84.5 [ifelse one-of neighbors with [pcolor = 9.9] != nobody [face min-one-of (neighbors with [pcolor = 9.9 or pcolor = 118.1]) [abs-hdiff myself self] fd 1] [fd 1]]
+  ; at an exit
+  current-patch-color = 14.8 [set turtles-safe (turtles-safe + 1) die]
+  ; on stairs and can only walk half as fast, this only happens outside the yellow room at the south side
+  current-patch-color = 103.5 [fd 0.5]
+  )
+
+end
+
+to check-for-walls
+  ; is the patch coming up a wall, furniture, stairs or the middle of the front desk? try to avoid it
+   if count patches in-cone 10 30 with [pcolor = 0 or pcolor = 125.8 or pcolor = 103.5 or pcolor = 4.5] > 0
+    [rt (random 180 - 90)]
+      ; if you are almost (within 2 patches) bumping in any of the mentioned above, turn as much as you have to to avoid it
+       while [[pcolor] of patch-ahead 2 = 0 or [pcolor] of patch-ahead 2 = 125.8 or [pcolor] of patch-ahead 2 = 103.5 or [pcolor] of patch-ahead 2 = 4.5 or
+              [pcolor] of patch-ahead 1 = 0 or [pcolor] of patch-ahead 1 = 125.8 or [pcolor] of patch-ahead 1 = 103.5 or [pcolor] of patch-ahead 1 = 4.5]
+        [rt (random 360 - 180)]
+end
+
 to-report abs-hdiff [#t #p] ; find difference in heading, in this version we don't use this
   let _current [heading] of #t
   let _new [towards #p] of #t
   report abs (subtract-headings _current _new)
 end
+
+;;; code we do not use anymore
 
 to walk-out-dijkstra
   ifelse patch-here = destination [][ ;if you already are on your destination you don't have to walk anymore
