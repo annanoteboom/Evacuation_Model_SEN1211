@@ -37,7 +37,7 @@ to setup
   ask turtles [choose-destination set key-patch patch 0 0]
   ask turtles [set gender one-of ["male" "female"]] ;assumption: distribution male/female is 50% even though it is Delft
   ask turtles [set very-old-or-young random 100] ;assumption: 10% of people in the library are very old/young and therefore walk slower
-  ask turtles [ifelse very-old-or-young < 5 or very-old-or-young > 95 [set walkingspeed 0.5] [ifelse gender = "male" [set walkingspeed 1] [set walkingspeed 0.9]]] ;15% of the population walks slowly due to age, women walk a little slower than men
+  ask turtles [ifelse very-old-or-young < 5 or very-old-or-young > 95 [set walkingspeed 0.5 set color blue] [ifelse gender = "male" [set walkingspeed 1] [set walkingspeed 0.9]]] ;15% of the population walks slowly due to age, women walk a little slower than men
   ask turtles [update-people-closeby 10]
   ; give all kiddo turtles a designated parent
   ask turtles [set kid-parent nobody]
@@ -86,14 +86,21 @@ to walk-out
   ;; common spaces
 
   ; main hall
-    current-patch-color = 9.9 [ifelse (pycor > 144 and pxcor > 125 and pxcor < 140) [face patch 138 141 check-for-walls check-for-crowd] [
-    face destination check-for-walls check-for-crowd]]
+
+
+    current-patch-color = 9.9 [(ifelse pycor > 144 and pxcor > 125 and pxcor < 140 [face patch 138 141]
+      pycor <= 126 and pycor >= 115 and pxcor >= 123 and pxcor <= 150 [face patch 120 124]
+      pycor > 88 and pycor < 98 and pxcor <= 92 and pxcor > 85 [face patch 82 103]
+      pycor > 88 and pycor < 98 and pxcor > 92 and pxcor < 99 [ face patch 102 92]
+      pycor <= 160 and pycor >= 138 and pxcor >= 32 and pxcor <= 88 [face patch 89 136]
+      [face destination]) check-for-walls check-for-crowd]
+
   ; blue hallway at the north side
   current-patch-color = 87 [ifelse pxcor < 40 [face patch 34 160 check-for-walls check-for-crowd] [face patch 82 159 check-for-crowd]]
   ; brown rooms and toilets at the north side
   current-patch-color = 35.6 or current-patch-color = 63.6 [(ifelse pycor > 170 and pxcor < 63 [ifelse pxcor < 48 [
     face patch 48 175 check-for-walls check-for-crowd] [face patch 60 169 check-for-walls check-for-crowd] ] pycor > 164 and pxcor < 79 [
-    face patch 63 167 check-for-walls check-for-crowd] pycor > 162 [
+    face patch 63 167 check-for-walls check-for-crowd] pycor > 162 and pxcor > 79 [
     face patch 79 162 check-for-walls check-for-crowd] [face min-one-of (patches with [pcolor = 84.5 and pxcor > 49 and pxcor < 86]) [distance myself] check-for-walls check-for-crowd]
     )]
   ; yellow room at the north side
@@ -305,7 +312,7 @@ SWITCH
 155
 verbose?
 verbose?
-1
+0
 1
 -1000
 
@@ -336,7 +343,7 @@ population_visitors
 population_visitors
 0
 500
-86.0
+124.0
 1
 1
 NIL
@@ -351,7 +358,7 @@ population_staff
 population_staff
 0
 100
-13.0
+30.0
 1
 1
 NIL
