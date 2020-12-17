@@ -9,6 +9,11 @@ turtles-own [
   current-patch-color
   key-patch
   ;previous-patch
+  gender
+  very-old-or-young
+  walkingspeed
+  people-near-me
+  kid-parent
 ]
 
 globals [
@@ -30,12 +35,26 @@ to setup
   ask n-of population_staff patches with [pcolor = 9.9 or pcolor = 63.6 or pcolor = 25.6 or pcolor = 84.5 or pcolor = 14.8 or pcolor = 28.7 or pcolor = 87 or pcolor = 72.1] [sprout-staff 1[ set color red - 2 + random 7  ;; random shades look nice
     set size 10]]  ;; easier to see]]
   ask turtles [choose-destination set key-patch patch 0 0]
+  ask turtles [set gender one-of ["male" "female"]] ;assumption: distribution male/female is 50% even though it is Delft
+  ask turtles [set very-old-or-young random 100] ;assumption: 10% of people in the library are very old/young and therefore walk slower
+  ask turtles [ifelse very-old-or-young < 5 or very-old-or-young > 95 [set walkingspeed 0.5] [ifelse gender = "male" [set walkingspeed 1] [set walkingspeed 0.9]]] ;15% of the population walks slowly due to age, women walk a little slower than men
+  ask turtles [update-people-closeby 10]
+  ; give all kiddo turtles a designated parent
+  ask turtles [set kid-parent nobody]
+  ask turtles [if very-old-or-young < 5  [
+    ;check if there is someone in your direct surroundings you can make your parent
+    ifelse one-of turtles with [member? [who] of self [people-near-me] of myself and kid-parent = nobody] != nobody [
+      ask one-of turtles with [member? [who] of self [people-near-me] of myself and kid-parent = nobody] [
+        set kid-parent [who] of myself ] ]
+    ; otherwise take the nearest person
+    [ask min-one-of turtles [distance myself] [set kid-parent [who] of myself] ]
+    set kid-parent [who] of turtles with [kid-parent = [who] of myself]]]
   reset-ticks
 end
 
 to choose-destination
   ;set destination patch 370 436
-  ifelse [pcolor] of patch-here = 25.6 or [pcolor] of patch-here = 28.7 [
+  ifelse pycor < 28.7 and ([pcolor] of patch-here = 25.6 or [pcolor] of patch-here = 28.7) [
     set destination one-of patches with [pcolor = 14.8 and pxcor > 10 and pxcor < 30]] [
     set destination one-of patches with [pcolor = 14.8 and pxcor > 110 and pxcor < 130]]
 end
@@ -67,11 +86,11 @@ to walk-out
   ;; common spaces
 
   ; main hall
-  current-patch-color = 9.9 [ifelse (pycor > 144 and pxcor > 125 and pxcor < 140) [face patch 138 141 check-for-walls check-for-crowd] [
+    current-patch-color = 9.9 [ifelse (pycor > 144 and pxcor > 125 and pxcor < 140) [face patch 138 141 check-for-walls check-for-crowd] [
     face destination check-for-walls check-for-crowd]]
   ; blue hallway at the north side
   current-patch-color = 87 [ifelse pxcor < 40 [face patch 34 160 check-for-walls check-for-crowd] [face patch 82 159 check-for-crowd]]
-  ;brown rooms and toilets at the north side
+  ; brown rooms and toilets at the north side
   current-patch-color = 35.6 or current-patch-color = 63.6 [(ifelse pycor > 170 and pxcor < 63 [ifelse pxcor < 48 [
     face patch 48 175 check-for-walls check-for-crowd] [face patch 60 169 check-for-walls check-for-crowd] ] pycor > 164 and pxcor < 79 [
     face patch 63 167 check-for-walls check-for-crowd] pycor > 162 [
@@ -136,7 +155,7 @@ to walk-out
   current-patch-color = 63.6 [ifelse ycor < 35 and xcor < 75 [ face patch 65 30 check-for-walls check-for-crowd]
       [if ycor < 35   [ face patch 82 30 check-for-walls check-for-crowd]]]
   ; code for staff when in the pink hallway
-  current-patch-color = 28.7 [ifelse pxcor < 115 [face patch 39 27] [ifelse pxcor < 191 [face patch 191 27] [face patch 191 35]] check-for-walls check-for-crowd]
+    current-patch-color = 28.7 [face patch 39 27 check-for-walls check-for-crowd]
 
   ;; special spaces
 
@@ -163,24 +182,20 @@ to check-for-walls
 end
 
 to check-for-crowd
-  ifelse patch-ahead 1 = patch-here[
-    if ( count [turtles-here] of patch-ahead 2 ) < 12 [fd 1]] [
-    if ( count [turtles-here] of patch-ahead 2 ) < 12 [fd 1]]
+ if (count [turtles-here] of patch-ahead walkingspeed) < 12 [fd walkingspeed]
 end
-
-
-
-
-
-
-
-
 
 to-report abs-hdiff [#t #p] ; find difference in heading, in this version we don't use this
   let _current [heading] of #t
   let _new [towards #p] of #t
   report abs (subtract-headings _current _new)
 end
+
+to update-people-closeby [radius]
+  set people-near-me [who] of turtles in-radius radius with [who != [who] of myself and [pcolor] of [patch-here] of self = [pcolor] of [patch-here] of myself]
+    ;people in your room with a distance of less than 6 meter to you
+end
+
 
 ;;; code we do not use anymore
 
@@ -190,7 +205,7 @@ to walk-out-dijkstra
   ;face max-one-of (neighbors with [(member? self [path-to-exit] of myself)]) [dijkstra-dist] ;face one of the patches around you that is in your route to the exits and has the lowest distance to the door (not where you just came from)
     face min-one-of (neighbors with [(member? self [path-to-exit] of myself)]) [abs-hdiff myself self]
     ;set path-to-exit (patch-set path-to-exit with [self != [patch-here] of myself])
-  fd 1
+  fd walkingspeed
   ]
 end
 
@@ -313,15 +328,15 @@ OUTPUT
 12
 
 SLIDER
-16
+6
 209
-188
+178
 242
 population_visitors
 population_visitors
 0
 500
-258.0
+86.0
 1
 1
 NIL
@@ -336,7 +351,7 @@ population_staff
 population_staff
 0
 100
-78.0
+13.0
 1
 1
 NIL
@@ -382,6 +397,24 @@ ticks / 60
 1
 1
 11
+
+PLOT
+759
+115
+959
+265
+Max people on patch
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot [count turtles-here] of max-one-of patches [count turtles-here]"
 
 @#$#@#$#@
 ## WHAT IS IT?
