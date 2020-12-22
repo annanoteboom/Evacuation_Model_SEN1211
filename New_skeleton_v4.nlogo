@@ -14,12 +14,16 @@ turtles-own [
   walkingspeed
   people-near-me
   kid-parent
+  done?
+  patches-in-sight
 ]
 
 globals [
   p-valids ; patches where one can walk
   all-colors
   turtles-safe
+  emergency ;has the alarm gone off
+  alarmtime
 ]
 
 patches-own [
@@ -30,25 +34,27 @@ to setup
   clear-all
   setupMap
   ;place visitors and staff randomly on valid patches
-  ask n-of population_visitors patches with [pcolor = 9.9 or pcolor = 137.1 or pcolor = 106.5 or pcolor = 35.6 or pcolor = 118.1 or pcolor = 44.9 or pcolor = 44.3 or pcolor = 12.6 or pcolor = 125.7 or pcolor = 63.6 or pcolor = 14.8 or pcolor = 87] [sprout-visitors 1[ set color green - 2 + random 7  ;; random shades look nice
+  ask n-of population_visitors patches with [pcolor = 9.9 or pcolor = 137.1 or pcolor = 106.5 or pcolor = 35.6 or pcolor = 118.1 or pcolor = 44.9 or pcolor = 44.3 or pcolor = 12.6 or pcolor = 125.7 or pcolor = 63.6 or pcolor = 14.8 or pcolor = 87] [sprout-visitors 1[ set color green ;- 2 + random 7  ;; random shades look nice
     set size 10]]  ;; easier to see]]
-  ask n-of population_staff patches with [pcolor = 9.9 or pcolor = 63.6 or pcolor = 25.6 or pcolor = 84.5 or pcolor = 14.8 or pcolor = 28.7 or pcolor = 87 or pcolor = 72.1] [sprout-staff 1[ set color red - 2 + random 7  ;; random shades look nice
+  ask n-of population_staff patches with [pcolor = 9.9 or pcolor = 63.6 or pcolor = 25.6 or pcolor = 84.5 or pcolor = 14.8 or pcolor = 28.7 or pcolor = 87 or pcolor = 72.1] [sprout-staff 1[ set color red ;- 2 + random 7  ;; random shades look nice
     set size 10]]  ;; easier to see]]
   ask turtles [choose-destination set key-patch patch 0 0]
   ask turtles [set gender one-of ["male" "female"]] ;assumption: distribution male/female is 50% even though it is Delft
   ask turtles [set very-old-or-young random 100] ;assumption: 10% of people in the library are very old/young and therefore walk slower
-  ask turtles [ifelse very-old-or-young < 5 or very-old-or-young > 95 [set walkingspeed 0.5 set color blue] [ifelse gender = "male" [set walkingspeed 1] [set walkingspeed 0.9]]] ;15% of the population walks slowly due to age, women walk a little slower than men
-  ask turtles [update-people-closeby 10]
-  ; give all kiddo turtles a designated parent
+  ask turtles [ifelse very-old-or-young < 5 or very-old-or-young > 95 [set walkingspeed 0.5] [ifelse gender = "male" [set walkingspeed 1] [set walkingspeed 0.9]]] ; 15% of the population walks slowly due to age, women walk a little slower than men
+    ; give all kiddo turtles a designated parent
   ask turtles [set kid-parent nobody]
   ask turtles [if very-old-or-young < 5  [
+    update-people-closeby 10
+    set color yellow - 2
     ;check if there is someone in your direct surroundings you can make your parent
-    ifelse one-of turtles with [member? [who] of self [people-near-me] of myself and kid-parent = nobody] != nobody [
-      ask one-of turtles with [member? [who] of self [people-near-me] of myself and kid-parent = nobody] [
-        set kid-parent [who] of myself ] ]
-    ; otherwise take the nearest person
-    [ask min-one-of turtles [distance myself] [set kid-parent [who] of myself] ]
-    set kid-parent [who] of turtles with [kid-parent = [who] of myself]]]
+    ifelse one-of turtles with [member? [who] of self [people-near-me] of myself and kid-parent = nobody and very-old-or-young > 5] != nobody [
+      ask one-of turtles with [member? [who] of self [people-near-me] of myself and kid-parent = nobody and very-old-or-young > 5] [
+        set kid-parent [who] of myself set color blue] ]
+    ; otherwise stop being a child and have an adult male walking speed
+    [set very-old-or-young 6 set walkingspeed 1] ]]
+  set emergency "no"
+  set alarmtime "noalarm"
   reset-ticks
 end
 
@@ -62,9 +68,10 @@ end
 to go
   ask turtles [set current-patch-color [pcolor] of patch-here]
   ; first three minutes everybody just walks randomly, then the alarm goes off
-  ifelse ticks < 30 [ask turtles [walk-randomly]] [ask turtles [walk-out]]
-
-  if ticks > 600 [write "it is taking too long," write count turtles print " people still in the building are dead now" stop]
+  ;ifelse ticks < 30 [ask turtles [walk-randomly]] [ask turtles [walk-out]]
+  ; once the alarm button has been pressed, the emergency situation commences
+  ifelse emergency = "no" [ask turtles [walk-randomly]] [ask turtles [walk-out]
+    if (ticks - alarmtime) > 600 [write "it is taking too long," write count turtles print " people still in the building are dead now" stop]]
   if not any? turtles [ print "everyone got evacuated safely" stop ]
   tick ; next time step
 end
@@ -73,26 +80,64 @@ to walk-randomly
   (ifelse
   ; when you are accidentally in a wall on a staircase or in pink furniture or in the middle of the balie
   current-patch-color = 0 or current-patch-color = 4.5 or current-patch-color = 125.8 [rt 150 fd 2]
-  ; at an exit
-  current-patch-color = 14.8 [set turtles-safe (turtles-safe + 1) die]
+  ; at an exit or already in the outsie brown somehow
+  current-patch-color = 14.8 or current-patch-color = 44.6 or current-patch-color = 34.3 [set turtles-safe (turtles-safe + 1) die
+      if kid-parent != nobody [ask one-of turtles with [kid-parent = [who] of myself ][die]]]
     [rt (random 100 - 50) check-for-walls check-for-crowd])
+
+end
+
+to alarm
+  set emergency "yes"
+  set alarmtime ticks
+end
+
+to parents-seek-kids
+  set done? false
+
+  ; parents go to their kids and pick them up, afterwards, they go to the exit
+  if kid-parent != nobody [
+  if very-old-or-young >= 5 and turtle kid-parent != nobody [
+    ifelse distance (turtle kid-parent) <= 1.5 [
+    ask turtle kid-parent [move-to myself] ] [
+      ;update-people-closeby 30
+      ;ifelse (member? turtle kid-parent [people-near-me] of self) [
+          face turtle kid-parent check-for-walls check-for-crowd set done? true
+          ;][if any? ([patches-in-sight] of self) with [pcolor = 84.5][
+        ;face min-one-of patches with [(member? self [patches-in-sight] of myself) and pcolor = 84.5] [distance turtle [kid-parent] of myself] ] ]
+  ]]]
+  ; kids walk around randomly until their parents pick them up
+  if very-old-or-young < 5 and one-of turtles with [kid-parent = [who] of myself] != nobody [if distance one-of turtles with [kid-parent = [who] of myself] > 1 [
+    walk-randomly set done? true]]
 
 end
 
 to walk-out
 
+  parents-seek-kids
+  if not done? [
+
   (ifelse
 
-  ;; common spaces
 
+  ;; common spaces
   ; main hall
 
-
-    current-patch-color = 9.9 [(ifelse pycor > 144 and pxcor > 125 and pxcor < 140 [face patch 138 141]
+    current-patch-color = 9.9 [
+      ; If you are in the down left corner and want to go to the downleft exit
+      (ifelse pxcor < 36 and pycor > 34 and ([pxcor] of [destination] of self < 30) [face patch 38 33]
+        ; if you are in the down left corner and want to go to the main entrance, dont do it, just go to the exit in front of you nose dumbass
+      pycor < 35 and ([pxcor] of [destination] of self > 30) [set destination one-of patches with [pcolor = 14.8 and pxcor > 10 and pxcor < 30]]
+        ; if you are in the corner above and right of the main exit behind the wall
+      pycor < 145 and pycor > 141 and pxcor < 137 and pxcor > 128 [face patch 125 142]
+      pycor > 142 and pxcor > 128 and pxcor < 140 [face patch 138 141]
+        ; if you are along side the wall of the dark yellow chamber
       pycor <= 126 and pycor >= 115 and pxcor >= 123 and pxcor <= 150 [face patch 120 124]
+       ; if you are around the help desk and cant get round
       pycor > 88 and pycor < 98 and pxcor <= 92 and pxcor > 85 [face patch 82 103]
       pycor > 88 and pycor < 98 and pxcor > 92 and pxcor < 99 [ face patch 102 92]
-      pycor <= 160 and pycor >= 138 and pxcor >= 32 and pxcor <= 88 [face patch 89 136]
+        ; if you are along the wall of the brown room
+      pycor <= 162 and pycor >= 138 and pxcor >= 31 and pxcor <= 88 [face patch 97 128]
       [face destination]) check-for-walls check-for-crowd]
 
   ; blue hallway at the north side
@@ -169,13 +214,14 @@ to walk-out
   ; when you are accidentally in a wall on a staircase or in pink furniture or in the middle of the balie
   current-patch-color = 0 or current-patch-color = 4.5 or current-patch-color = 125.8 [rt 150 fd 2]
   ; in a doorway
-  current-patch-color = 84.5 [ifelse one-of neighbors with [pcolor = 9.9] != nobody [face min-one-of (neighbors with [pcolor = 9.9 or pcolor = 118.1]) [abs-hdiff myself self] check-for-crowd] [check-for-crowd]]
-  ; at an exit
-  current-patch-color = 14.8 [set turtles-safe (turtles-safe + 1) die]
+  current-patch-color = 84.5 [ifelse one-of neighbors with [pcolor = 9.9] != nobody [face min-one-of (neighbors with [pcolor = 9.9 or pcolor = 118.1]) [abs-hdiff myself self] check-for-walls check-for-crowd] [check-for-walls check-for-crowd]]
+  ; at an exit or outside already
+  current-patch-color = 14.8 or current-patch-color = 44.6 or current-patch-color = 34.3 [set turtles-safe (turtles-safe + 1) die
+      if kid-parent != nobody [ask one-of turtles with [kid-parent = [who] of myself ][die]]]
   ; on stairs and can only walk half as fast, this only happens outside the yellow room at the south side
   current-patch-color = 103.5 [fd 0.5]
   )
-
+  ]
 end
 
 to check-for-walls
@@ -198,12 +244,44 @@ to-report abs-hdiff [#t #p] ; find difference in heading, in this version we don
   report abs (subtract-headings _current _new)
 end
 
-to update-people-closeby [radius]
-  set people-near-me [who] of turtles in-radius radius with [who != [who] of myself and [pcolor] of [patch-here] of self = [pcolor] of [patch-here] of myself]
-    ;people in your room with a distance of less than 6 meter to you
+to update-people-closeby [dist]
+  ; people in your room with a distance of less than x meter to you
+  update-sight 360 dist
+  if any? turtles with [(member? [patch-here] of self [patches-in-sight] of myself)] [
+    set people-near-me [who] of turtles with [(member? [patch-here] of self [patches-in-sight] of myself)]]
 end
 
+to update-sight [angle dist]
+  set patches-in-sight patch-set patch-here
+  ; scan your angle
+  set heading heading - (angle / 2)
+  foreach range angle [
+    set heading heading + 1
+    let wallfound? false
+    let more-to-see? false
+    ; start with the patches nearest to you
+    foreach range dist [ [x] ->
+      ; if you are not at the edge of the map
+      if not (patch-at-heading-and-distance heading x = nobody) [
+        let patchcolor [pcolor] of patch-at-heading-and-distance heading x
+        ; if you run into any wall, door or desk, you can't look any further
+        if not wallfound? [
+        ifelse patchcolor = 0 or patchcolor = 125.8 or patchcolor = 84.5 [set wallfound? true
+        set patches-in-sight (patch-set patches-in-sight patch-at-heading-and-distance heading x)] [
+        if patchcolor != 0 and patchcolor != 125.8 and patchcolor != 84.5[
+              set patches-in-sight (patch-set patches-in-sight patch-at-heading-and-distance heading x) set more-to-see? true]]]
+          if not more-to-see? [stop]
+  ]]]
+  set heading heading - (angle / 2)
+end
 
+to show-sight
+  ; marks the sight of one of the turtles lightgreen (is a button)
+  ask turtle 0 [update-sight 360 30
+    ask patches-in-sight [set pcolor green + 2]
+  ]
+
+end
 ;;; code we do not use anymore
 
 to walk-out-dijkstra
@@ -306,10 +384,10 @@ NIL
 1
 
 SWITCH
-12
-122
-133
-155
+759
+270
+880
+303
 verbose?
 verbose?
 0
@@ -317,10 +395,10 @@ verbose?
 -1000
 
 SWITCH
-12
-161
-122
-194
+760
+306
+870
+339
 debug?
 debug?
 0
@@ -336,14 +414,14 @@ OUTPUT
 
 SLIDER
 6
-209
+87
 178
-242
+120
 population_visitors
 population_visitors
 0
 500
-124.0
+166.0
 1
 1
 NIL
@@ -351,24 +429,24 @@ HORIZONTAL
 
 SLIDER
 6
-261
+124
 178
-294
+157
 population_staff
 population_staff
 0
 100
-30.0
+17.0
 1
 1
 NIL
 HORIZONTAL
 
 PLOT
-9
-318
-209
-468
+4
+161
+204
+311
 People out of the building
 time
 people
@@ -384,10 +462,10 @@ PENS
 "pen-1" 1.0 0 -7500403 true "" "plot turtles-safe"
 
 MONITOR
-10
-475
-104
-520
+6
+320
+100
+365
 Percentage safe
 turtles-safe / (population_visitors + population_staff) * 100
 1
@@ -395,12 +473,12 @@ turtles-safe / (population_visitors + population_staff) * 100
 11
 
 MONITOR
-111
-475
-209
-520
-Time in minutes
-ticks / 60
+3
+377
+145
+422
+Time in minutes since alarm
+(ticks - alarmtime) / 60
 1
 1
 11
@@ -422,6 +500,40 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" "plot [count turtles-here] of max-one-of patches [count turtles-here]"
+
+BUTTON
+120
+34
+183
+67
+Alarm
+Alarm
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+117
+328
+219
+361
+NIL
+show-sight
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
