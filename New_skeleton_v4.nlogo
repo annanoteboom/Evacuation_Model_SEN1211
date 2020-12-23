@@ -16,6 +16,7 @@ turtles-own [
   kid-parent
   done?
   patches-in-sight
+  search-step?
 ]
 
 globals [
@@ -41,25 +42,25 @@ to setup
   ask turtles [choose-destination set key-patch patch 0 0]
   ask turtles [set gender one-of ["male" "female"]] ;assumption: distribution male/female is 50% even though it is Delft
   ask turtles [set very-old-or-young random 100] ;assumption: 10% of people in the library are very old/young and therefore walk slower
-  ask turtles [ifelse very-old-or-young < 5 or very-old-or-young > 95 [set walkingspeed 0.5] [ifelse gender = "male" [set walkingspeed 1] [set walkingspeed 0.9]]] ; 15% of the population walks slowly due to age, women walk a little slower than men
+  ask turtles [ifelse very-old-or-young < Percentage-kids or very-old-or-young > (100 - Percentage-old-people) [set walkingspeed 0.5] [ifelse gender = "male" [set walkingspeed 1] [set walkingspeed 0.9]]] ; 15% of the population walks slowly due to age, women walk a little slower than men
     ; give all kiddo turtles a designated parent
   ask turtles [set kid-parent nobody]
-  ask turtles [if very-old-or-young < 5  [
+  ask turtles [if (very-old-or-young < Percentage-kids)  [
     update-people-closeby 10
     set color yellow - 2
     ;check if there is someone in your direct surroundings you can make your parent
-    ifelse one-of turtles with [member? [who] of self [people-near-me] of myself and kid-parent = nobody and very-old-or-young > 5] != nobody [
-      ask one-of turtles with [member? [who] of self [people-near-me] of myself and kid-parent = nobody and very-old-or-young > 5] [
-        set kid-parent [who] of myself set color blue] ]
-    ; otherwise stop being a child and have an adult male walking speed
-    [set very-old-or-young 6 set walkingspeed 1] ]]
+    ifelse one-of turtles with [member? [who] of self [people-near-me] of myself and kid-parent = nobody and very-old-or-young > Percentage-kids] != nobody [
+      set kid-parent [who] of min-one-of turtles with [member? [who] of self [people-near-me] of myself and kid-parent = nobody and very-old-or-young > Percentage-kids] [distance myself]
+      ask min-one-of turtles with [member? [who] of self [people-near-me] of myself and kid-parent = nobody and very-old-or-young > Percentage-kids] [distance myself] [
+        set kid-parent [who] of myself set color blue set search-step? true] ]
+    ; otherwise stop being a child
+    [set very-old-or-young (Percentage-kids + 1) ifelse gender = "male" [set walkingspeed 1] [set walkingspeed 0.9]] ]]
   set emergency "no"
   set alarmtime "noalarm"
   reset-ticks
 end
 
 to choose-destination
-  ;set destination patch 370 436
   ifelse pycor < 28.7 and ([pcolor] of patch-here = 25.6 or [pcolor] of patch-here = 28.7) [
     set destination one-of patches with [pcolor = 14.8 and pxcor > 10 and pxcor < 30]] [
     set destination one-of patches with [pcolor = 14.8 and pxcor > 110 and pxcor < 130]]
@@ -97,19 +98,26 @@ to parents-seek-kids
 
   ; parents go to their kids and pick them up, afterwards, they go to the exit
   if kid-parent != nobody [
-  if very-old-or-young >= 5 and turtle kid-parent != nobody [
-    ifelse distance (turtle kid-parent) <= 1.5 [
-    ask turtle kid-parent [move-to myself] ] [
-      ;update-people-closeby 30
-      ;ifelse (member? turtle kid-parent [people-near-me] of self) [
-          face turtle kid-parent check-for-walls check-for-crowd set done? true
-          ;][if any? ([patches-in-sight] of self) with [pcolor = 84.5][
-        ;face min-one-of patches with [(member? self [patches-in-sight] of myself) and pcolor = 84.5] [distance turtle [kid-parent] of myself] ] ]
+  if very-old-or-young >= Percentage-kids and turtle kid-parent != nobody [
+      ; if you are practically next to your kid or walking with it, pick it up (have it always be on your patch)
+    ifelse distance (turtle kid-parent) <= 1.5 [ask turtle kid-parent [move-to myself] ] [
+        ; if not, search your visible surrounding
+        if search-step? [update-people-closeby (distance turtle kid-parent) set search-step? false]
+        ; if you can see your kid, face it and walk to it
+      (ifelse (member? kid-parent people-near-me) [face turtle kid-parent check-for-walls check-for-crowd]
+          ; if you can't see your kid but you can see a door that is closer to your kid, walk to it
+          any? patches-in-sight with [pcolor = 84.5] and current-patch-color != 84.5 [
+            face min-one-of patches with [(member? self [patches-in-sight] of myself) and pcolor = 84.5] [distance (turtle [kid-parent] of myself)]
+            check-for-walls check-for-crowd]
+          ; if you can't see your kid and you cant see a door, walk around randomly in the hopes of finding either
+          [walk-randomly set search-step? true] )
+        ; if you are now in a doorway, go scan your surrounding again next step
+        if current-patch-color = 84.5 [set search-step? true check-for-walls check-for-crowd]
+   set done? true
   ]]]
   ; kids walk around randomly until their parents pick them up
-  if very-old-or-young < 5 and one-of turtles with [kid-parent = [who] of myself] != nobody [if distance one-of turtles with [kid-parent = [who] of myself] > 1 [
+  if very-old-or-young < Percentage-kids and turtle kid-parent != nobody [if distance turtle kid-parent > 1 [
     walk-randomly set done? true]]
-
 end
 
 to walk-out
@@ -125,7 +133,7 @@ to walk-out
 
     current-patch-color = 9.9 [
       ; If you are in the down left corner and want to go to the downleft exit
-      (ifelse pxcor < 36 and pycor > 34 and ([pxcor] of [destination] of self < 30) [face patch 38 33]
+      (ifelse pxcor < 36 and pycor > 32.9 and ([pxcor] of [destination] of self < 30) [face patch 38 31]
         ; if you are in the down left corner and want to go to the main entrance, dont do it, just go to the exit in front of you nose dumbass
       pycor < 35 and ([pxcor] of [destination] of self > 30) [set destination one-of patches with [pcolor = 14.8 and pxcor > 10 and pxcor < 30]]
         ; if you are in the corner above and right of the main exit behind the wall
@@ -325,11 +333,11 @@ end
 GRAPHICS-WINDOW
 224
 10
-744
-561
+684
+497
 -1
 -1
-2.0
+1.766
 1
 10
 1
@@ -534,6 +542,36 @@ NIL
 NIL
 NIL
 1
+
+SLIDER
+738
+25
+910
+58
+Percentage-kids
+Percentage-kids
+0
+20
+5.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+737
+70
+912
+103
+Percentage-old-people
+Percentage-old-people
+0
+20
+5.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
