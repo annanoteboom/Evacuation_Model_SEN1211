@@ -11,12 +11,14 @@ turtles-own [
   ;previous-patch
   gender
   very-old-or-young
+  runningspeed
   walkingspeed
   people-near-me
   kid-parent
   done?
   patches-in-sight
   search-step?
+  task-delay
 ]
 
 globals [
@@ -42,9 +44,11 @@ to setup
   ask turtles [choose-destination set key-patch patch 0 0]
   ask turtles [set gender one-of ["male" "female"]] ;assumption: distribution male/female is 50% even though it is Delft
   ask turtles [set very-old-or-young random 100] ;assumption: 10% of people in the library are very old/young and therefore walk slower
-  ask turtles [ifelse very-old-or-young < Percentage-kids or very-old-or-young > (100 - Percentage-old-people) [set walkingspeed 0.5] [ifelse gender = "male" [set walkingspeed 1] [set walkingspeed 0.9]]] ; 15% of the population walks slowly due to age, women walk a little slower than men
-    ; give all kiddo turtles a designated parent
+  ask turtles [ifelse very-old-or-young < Percentage-kids or very-old-or-young > (100 - Percentage-old-people) [set runningspeed 0.6] [ifelse gender = "male" [set runningspeed 1] [set runningspeed 0.93]]] ; 15% of the population walks slowly due to age, women walk a little slower than men
+  ask turtles [ifelse very-old-or-young < Percentage-kids or very-old-or-young > (100 - Percentage-old-people) [set walkingspeed 0.3] [ifelse gender = "male" [set walkingspeed 0.6667] [set walkingspeed 0.6]]] ; 15% of the population walks slowly due to age, women walk a little slower than men
+  ; give all kiddo turtles a designated parent
   ask turtles [set kid-parent nobody]
+  ask turtles [set task-delay 0]
   ask turtles [if (very-old-or-young < Percentage-kids)  [
     update-people-closeby 10
     set color yellow - 2
@@ -54,7 +58,7 @@ to setup
       ask min-one-of turtles with [member? [who] of self [people-near-me] of myself and kid-parent = nobody and very-old-or-young > Percentage-kids] [distance myself] [
         set kid-parent [who] of myself set color blue set search-step? true] ]
     ; otherwise stop being a child
-    [set very-old-or-young (Percentage-kids + 1) ifelse gender = "male" [set walkingspeed 1] [set walkingspeed 0.9]] ]]
+    [set very-old-or-young (Percentage-kids + 1) ifelse gender = "male" [set runningspeed 1] [set runningspeed 0.93] ifelse gender = "male" [set walkingspeed 0.6667] [set walkingspeed 0.6]] ]]
   set emergency "no"
   set alarmtime "noalarm"
   reset-ticks
@@ -68,12 +72,23 @@ end
 
 to go
   ask turtles [set current-patch-color [pcolor] of patch-here]
-  ; first three minutes everybody just walks randomly, then the alarm goes off
-  ;ifelse ticks < 30 [ask turtles [walk-randomly]] [ask turtles [walk-out]]
-  ; once the alarm button has been pressed, the emergency situation commences
+                      ; first three minutes everybody just walks randomly, then the alarm goes off
+                      ;ifelse ticks < 30 [ask turtles [walk-randomly]] [ask turtles [walk-out]]
+  ;if the automatic_emergency is turned on after 30 seconds the alarm goes off
+  if automatic_emergency = true [if ticks = 30 [alarm]]
+
   ifelse emergency = "no" [ask turtles [walk-randomly]] [ask turtles [walk-out]
     if (ticks - alarmtime) > 600 [write "it is taking too long," write count turtles print " people still in the building are dead now" stop]]
+
+;  ifelse automatic_emergency = true
+    ;if the automatic_emergency is turned on after 30 seconds the alarm goes off
+;    [ifelse ticks < 30 [ask turtles [walk-randomly]] [ask turtles [walk-out]]
+;      if (ticks - 30) > 400 [write "it is taking too long," write count turtles print " people still in the building are dead now" stop]]
+    ; once the alarm button has been pressed, the emergency situation commences
+;    [ifelse emergency = "no" [ask turtles [walk-randomly]] [ask turtles [walk-out]
+;    if (ticks - alarmtime) > 600 [write "it is taking too long," write count turtles print " people still in the building are dead now" stop]]]
   if not any? turtles [ print "everyone got evacuated safely" stop ]
+
   tick ; next time step
 end
 
@@ -84,18 +99,24 @@ to walk-randomly
   ; at an exit or already in the outsie brown somehow
   current-patch-color = 14.8 or current-patch-color = 44.6 or current-patch-color = 34.3 [set turtles-safe (turtles-safe + 1) die
       if kid-parent != nobody [ask one-of turtles with [kid-parent = [who] of myself ][die]]]
-    [rt (random 100 - 50) check-for-walls check-for-crowd])
-
+    [rt (random 100 - 50) check-for-walls check-for-crowdwalk])
 end
 
 to alarm
   set emergency "yes"
   set alarmtime ticks
+  ask turtles [check-for-task]
 end
+
+to check-for-task
+  ;assign a task when the alarm has gone off
+  if current-patch-color = 63.6 [set task-delay (random-poisson 60)]  ;toilet
+  ;hier kunnen we nog heel veel taken aan toevoegen
+end
+
 
 to parents-seek-kids
   set done? false
-
   ; parents go to their kids and pick them up, afterwards, they go to the exit
   if kid-parent != nobody [
   if very-old-or-young >= Percentage-kids and turtle kid-parent != nobody [
@@ -120,13 +141,15 @@ to parents-seek-kids
     walk-randomly set done? true]]
 end
 
+
 to walk-out
 
   parents-seek-kids
   if not done? [
 
+  ifelse task-delay != 0 [set task-delay task-delay - 1]
+  [
   (ifelse
-
 
   ;; common spaces
   ; main hall
@@ -229,7 +252,7 @@ to walk-out
   ; on stairs and can only walk half as fast, this only happens outside the yellow room at the south side
   current-patch-color = 103.5 [fd 0.5]
   )
-  ]
+  ]]
 end
 
 to check-for-walls
@@ -243,6 +266,10 @@ to check-for-walls
 end
 
 to check-for-crowd
+ if (count [turtles-here] of patch-ahead runningspeed) < 12 [fd runningspeed]
+end
+
+to check-for-crowdwalk
  if (count [turtles-here] of patch-ahead walkingspeed) < 12 [fd walkingspeed]
 end
 
@@ -288,8 +315,19 @@ to show-sight
   ask turtle 0 [update-sight 360 30
     ask patches-in-sight [set pcolor green + 2]
   ]
+  ask turtle 0 [set color black]
 
 end
+
+
+
+
+
+
+
+
+
+
 ;;; code we do not use anymore
 
 to walk-out-dijkstra
@@ -451,10 +489,10 @@ NIL
 HORIZONTAL
 
 PLOT
-4
-161
-204
-311
+5
+205
+205
+355
 People out of the building
 time
 people
@@ -470,10 +508,10 @@ PENS
 "pen-1" 1.0 0 -7500403 true "" "plot turtles-safe"
 
 MONITOR
-6
-320
-100
-365
+7
+364
+101
+409
 Percentage safe
 turtles-safe / (population_visitors + population_staff) * 100
 1
@@ -481,10 +519,10 @@ turtles-safe / (population_visitors + population_staff) * 100
 11
 
 MONITOR
-3
-377
-145
-422
+5
+414
+147
+459
 Time in minutes since alarm
 (ticks - alarmtime) / 60
 1
@@ -510,10 +548,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot [count turtles-here] of max-one-of patches [count turtles-here]"
 
 BUTTON
-120
-34
-183
-67
+111
+49
+174
+82
 Alarm
 Alarm
 NIL
@@ -527,10 +565,10 @@ NIL
 1
 
 BUTTON
-117
-328
-219
-361
+118
+372
+220
+405
 NIL
 show-sight
 NIL
@@ -572,6 +610,27 @@ Percentage-old-people
 1
 NIL
 HORIZONTAL
+
+SWITCH
+4
+166
+183
+199
+automatic_emergency
+automatic_emergency
+1
+1
+-1000
+
+CHOOSER
+27
+477
+179
+522
+Experiment
+Experiment
+"basic" "nearest exit" "exit signs" "flickering exit signs"
+0
 
 @#$#@#$#@
 ## WHAT IS IT?
