@@ -18,6 +18,8 @@ turtles-own [
   patches-in-sight
   search-step?
   task-delay
+  familiarity
+  task
 ]
 
 globals [
@@ -35,16 +37,23 @@ patches-own [
 to setup
   clear-all
   setupMap
+
   ;place visitors and staff randomly on valid patches
   ask n-of population_visitors patches with [pcolor = 9.9 or pcolor = 137.1 or pcolor = 106.5 or pcolor = 35.6 or pcolor = 118.1 or pcolor = 44.9 or pcolor = 44.3 or pcolor = 12.6 or pcolor = 125.7 or pcolor = 63.6 or pcolor = 14.8 or pcolor = 87] [sprout-visitors 1[ set color green ;- 2 + random 7  ;; random shades look nice
     set size 10]]  ;; easier to see]]
   ask n-of population_staff patches with [pcolor = 9.9 or pcolor = 63.6 or pcolor = 25.6 or pcolor = 84.5 or pcolor = 14.8 or pcolor = 28.7 or pcolor = 87 or pcolor = 72.1] [sprout-staff 1[ set color red ;- 2 + random 7  ;; random shades look nice
     set size 10]]  ;; easier to see]]
-  ask turtles [choose-destination set key-patch patch 0 0]
-  ask turtles [set gender one-of ["male" "female"]] ;assumption: distribution male/female is 50% even though it is Delft
+  ;ask turtles [choose-destination set key-patch patch 0 0]
+  ;ask turtles [set gender one-of ["male" "female"]] ;assumption: distribution male/female is 50% even though it is Delft
+
+  ;assign gender
+  ask turtles [set gender "male"]
+  ask n-of (count turtles * percentage_female / 100) turtles [set gender "female"]
+
   ask turtles [set very-old-or-young random 100] ;assumption: 10% of people in the library are very old/young and therefore walk slower
   ask turtles [ifelse very-old-or-young < Percentage-kids or very-old-or-young > (100 - Percentage-old-people) [set runningspeed 0.6] [ifelse gender = "male" [set runningspeed 1] [set runningspeed 0.93]]] ; 15% of the population walks slowly due to age, women walk a little slower than men
   ask turtles [ifelse very-old-or-young < Percentage-kids or very-old-or-young > (100 - Percentage-old-people) [set walkingspeed 0.3] [ifelse gender = "male" [set walkingspeed 0.6667] [set walkingspeed 0.6]]] ; 15% of the population walks slowly due to age, women walk a little slower than men
+
   ; give all kiddo turtles a designated parent
   ask turtles [set kid-parent nobody]
   ask turtles [set task-delay 0]
@@ -58,35 +67,30 @@ to setup
         set kid-parent [who] of myself set color blue set search-step? true] ]
     ; otherwise stop being a child
     [set very-old-or-young (Percentage-kids + 1) ifelse gender = "male" [set runningspeed 1] [set runningspeed 0.93] ifelse gender = "male" [set walkingspeed 0.6667] [set walkingspeed 0.6]] ]]
+    ask n-of (count visitors * percentage_visitors_with_familiarity / 100) visitors [set familiarity True] ;how many visitors know the building
+
   set emergency "no"
   set alarmtime "noalarm"
   reset-ticks
 end
 
-to choose-destination
-  ifelse pycor < 28.7 and ([pcolor] of patch-here = 25.6 or [pcolor] of patch-here = 28.7) [
-    set destination one-of patches with [pcolor = 14.8 and pxcor > 10 and pxcor < 30]] [
-    set destination one-of patches with [pcolor = 14.8 and pxcor > 110 and pxcor < 130]]
-end
+;to choose-destination ;kan volgens mij weg
+;  ifelse pycor < 28.7 and ([pcolor] of patch-here = 25.6 or [pcolor] of patch-here = 28.7) [
+;    set destination one-of patches with [pcolor = 14.8 and pxcor > 10 and pxcor < 30]] [
+;    set destination one-of patches with [pcolor = 14.8 and pxcor > 110 and pxcor < 130]]
+;end
 
 to go
   ask turtles [set current-patch-color [pcolor] of patch-here]
-                      ; first three minutes everybody just walks randomly, then the alarm goes off
-                      ;ifelse ticks < 30 [ask turtles [walk-randomly]] [ask turtles [walk-out]]
-  ;if the automatic_emergency is turned on after 30 seconds the alarm goes off
   if automatic_emergency = true [if ticks = 30 [alarm]]
 
-  ifelse emergency = "no" [ask turtles [walk-randomly]] [ask turtles [walk-out]
+;  ifelse emergency = "no" [ask turtles [do-task]] [ask turtles with [destination != 0] [walk-out] ; was turtles
+  ifelse emergency = "no" [ask turtles [do-task]] [ask turtles [ifelse destination = 0 [do-task] [walk-out]]
     if (ticks - alarmtime) > 600 [write "it is taking too long," write count turtles print " people still in the building are dead now" stop]]
-
-;  ifelse automatic_emergency = true
-    ;if the automatic_emergency is turned on after 30 seconds the alarm goes off
-;    [ifelse ticks < 30 [ask turtles [walk-randomly]] [ask turtles [walk-out]]
-;      if (ticks - 30) > 400 [write "it is taking too long," write count turtles print " people still in the building are dead now" stop]]
-    ; once the alarm button has been pressed, the emergency situation commences
-;    [ifelse emergency = "no" [ask turtles [walk-randomly]] [ask turtles [walk-out]
-;    if (ticks - alarmtime) > 600 [write "it is taking too long," write count turtles print " people still in the building are dead now" stop]]]
   if not any? turtles [ print "everyone got evacuated safely" stop ]
+  ask turtles [ if current-patch-color = 14.8                                                    ; or current-patch-color = 44.6 or current-patch-color = 34.3
+    [set turtles-safe (turtles-safe + 1) die
+      if kid-parent != nobody [ask one-of turtles with [kid-parent = [who] of myself ][die]]]]
 
   tick ; next time step
 end
@@ -104,30 +108,55 @@ end
 to alarm
   set emergency "yes"
   set alarmtime ticks
-  ask turtles [check-for-task]
-  ask staff [pick-destination]
-  if experiment = "nearest exit" [ask turtles [pick-destination]]
+
+  if experiment = "basic" [
+    ask staff [pick-destination]
+    ask turtles [if familiarity = True [pick-destination]]] ;what a visitor does when he is familiar with the building
+
+  if experiment = "nearest exit" [
+    ask staff [pick-destination]
+    ask turtles [if familiarity = True [pick-destination]]] ;what a visitor does when he is familiar with the building
+
   if experiment = "everyone to same exit" [
-    if same_exit = "above right exit"[ask turtles [set destination patch 155 170]]
-    if same_exit = "main exit" [ask turtles [set destination patch 125 146]]
-    if same_exit = "below left exit" [ask turtles [set destination patch 23 30]]]
+    if same_exit = "above right exit"[
+      ask staff [set destination patch 155 169]]
+    if same_exit = "main exit" [
+      ask staff [set destination one-of (patch-set patch 125 146 patch 115 149)]]
+    if same_exit = "below left exit" [
+      ask staff [set destination patch 23 30]]]
+
+
+;  ask turtles [finish-task]
+;  ask staff [pick-destination]
+;  if experiment = "nearest exit" [ask turtles [pick-destination]]
+;  if experiment = "everyone to same exit" [
+;    if same_exit = "above right exit"[ask turtles [set destination patch 155 169]]
+;    if same_exit = "main exit" [ask turtles [set destination one-of (patch-set patch 125 146 patch 115 149)]]
+;    if same_exit = "below left exit" [ask turtles [set destination patch 23 30]]]
 end
 
 to pick-destination
   let a [ distance patch 23 30 ] of patch-here ; linksonder
   let b [ distance patch 115 149 ] of patch-here ; linker hoofduitgang
   let c [ distance patch 125 146 ] of patch-here ; rechter hoofduitgang
-  let d [ distance patch 155 170 ] of patch-here ; rechtsboven
+  let d [ distance patch 155 169 ] of patch-here ; rechtsboven
   if min (list a b c d) = a [set destination patch 23 30]
   if min (list a b c d) = b [set destination patch 115 149]
   if min (list a b c d) = c [set destination patch 125 146]
   if min (list a b c d) = d [
-    ifelse current-patch-color = 9.9 [set destination patch 125 146] [set destination patch 155 170]]
+    ifelse current-patch-color = 9.9 [set destination patch 125 146] [set destination patch 155 169]]
 end
 
-to check-for-task
+to do-task
+  if current-patch-color = 63.6 [set task "toilet"]
+  if current-patch-color = 9.9 [walk-randomly]
+  ;if task != 0 [walk-randomly]
+end
+
+to finish-task
   ;assign a task when the alarm has gone off
-  if current-patch-color = 63.6 [set task-delay (random-poisson 60)]  ;toilet
+  ;if current-patch-color = 63.6
+  if task = "toilet" [set task-delay (random-poisson 60)]  ;toilet
   ;hier kunnen we nog heel veel taken aan toevoegen
 end
 
@@ -170,20 +199,28 @@ to walk-out
 
   ;; common spaces
   ; main hall
+    current-patch-color = 14.8                                                    ; or current-patch-color = 44.6 or current-patch-color = 34.3
+    [set turtles-safe (turtles-safe + 1) die
+      if kid-parent != nobody [ask one-of turtles with [kid-parent = [who] of myself ][die]]]
 
-    current-patch-color = 9.9 [
+
+        current-patch-color = 9.9 [
       ; If you are in the down left corner and want to go to the downleft exit
       (ifelse pxcor < 36 and pycor > 32.9 and ([pxcor] of [destination] of self < 30) [face patch 38 31]
-        ; if you are in the down left corner and want to go to the main entrance, dont do it, just go to the exit in front of you nose dumbass
-      pycor < 35 and ([pxcor] of [destination] of self > 30) [set destination one-of patches with [pcolor = 14.8 and pxcor > 10 and pxcor < 30]]
+        ; if you are in the down left corner and experiment is basic and want to go to the main entrance, dont do it, just go to the exit in front of you nose dumbass
+      experiment = "basic" and pycor < 35 and ([pxcor] of [destination] of self > 30) [set destination one-of patches with [pcolor = 14.8 and pxcor > 10 and pxcor < 30]]
+
+            experiment = "everyone to same exit" and same_exit = "above right exit" and xcor >= 106 and xcor <= 122 and ycor >= 76 and ycor <= 100 [face patch 113 72 check-for-walls check-for-crowd ]
+      experiment = "everyone to same exit" and same_exit = "above right exit" [face patch 185 76 check-for-walls check-for-crowd]
+
         ; if you are in the corner above and right of the main exit behind the wall
       pycor < 145 and pycor > 141 and pxcor < 137 and pxcor > 128 [face patch 125 142]
       pycor > 142 and pxcor > 128 and pxcor < 140 [face patch 138 141]
         ; if you are along side the wall of the dark yellow chamber
       pycor <= 126 and pycor >= 115 and pxcor >= 123 and pxcor <= 150 [face patch 120 124]
        ; if you are around the help desk and cant get round
-      pycor > 88 and pycor < 98 and pxcor <= 92 and pxcor > 85 [face patch 82 103]
-      pycor > 88 and pycor < 98 and pxcor > 92 and pxcor < 99 [ face patch 102 92]
+      experiment = "basic" and pycor > 88 and pycor < 98 and pxcor <= 92 and pxcor > 85 [face patch 82 103]
+      experiment = "basic" and pycor > 88 and pycor < 98 and pxcor > 92 and pxcor < 99 [ face patch 102 92]
         ; if you are along the wall of the brown room
       pycor <= 162 and pycor >= 138 and pxcor >= 31 and pxcor <= 88 [face patch 97 128]
       [face destination]) check-for-walls check-for-crowd]
@@ -203,12 +240,18 @@ to walk-out
   current-patch-color = 106.5 [face patch 18 161 check-for-walls check-for-crowd]
   ; purple hallway
   current-patch-color = 125.7 [(ifelse [pycor] of patch-here >= 98 [
-          ifelse destination != patch 155 170 [face patch 191 90 check-for-walls check-for-crowd] [
-          face patch 155 170 check-for-walls check-for-crowd]] ([pycor] of patch-here < 98)[
-    ifelse patch-here = patch 178 75
+    ifelse destination != patch 155 169 [face patch 191 90 check-for-walls check-for-crowd] [
+      face patch 155 169 check-for-walls check-for-crowd]]
+
+  current-patch-color = 125.7 and experiment = "everyone to same exit" and same_exit = "above right exit" [if [pycor] of patch-here < 98 [face patch 194 99 check-for-walls check-for-crowd]]
+
+  ([pycor] of patch-here < 98) [ifelse patch-here = patch 178 75
   ; purple room but not in the hallway first go to a bit before the door and then through the door
     [set key-patch patch 178 75 face patch 168 70 check-for-walls] [ifelse key-patch = patch 178 75 [face patch 168 70] [face patch 178 75]] check-for-crowd]
     )]
+
+
+
   ; yellow room at the south side
   current-patch-color = 44.9 [face patch 203 35 check-for-walls check-for-crowd]
   ; bourdeaux room
@@ -256,6 +299,9 @@ to walk-out
   current-patch-color = 63.6 [ifelse ycor < 35 and xcor < 75 [ face patch 65 30 check-for-walls check-for-crowd]
       [if ycor < 35   [ face patch 82 30 check-for-walls check-for-crowd]]]
   ; code for staff when in the pink hallway
+    experiment = "basic" or experiment = "nearest exit" and current-patch-color = 28.7 and destination = one-of (patch-set patch 125 146 patch 115 149) [set destination patch 23 30 check-for-walls check-for-crowd]
+    experiment = "everyone to same exit" and same_exit = "above right exit" and xcor < 191 [face patch 192 27 check-for-walls check-for-crowd]
+    experiment = "everyone to same exit" and same_exit = "above right exit" and current-patch-color = 28.7 and xcor >= 191  [face patch 192 38 check-for-walls check-for-crowd]
     current-patch-color = 28.7 [face patch 39 27 check-for-walls check-for-crowd]
 
   ;; special spaces
@@ -265,8 +311,6 @@ to walk-out
   ; in a doorway
   current-patch-color = 84.5 [ifelse one-of neighbors with [pcolor = 9.9] != nobody [face min-one-of (neighbors with [pcolor = 9.9 or pcolor = 118.1]) [abs-hdiff myself self] check-for-walls check-for-crowd] [check-for-walls check-for-crowd]]
   ; at an exit or outside already
-  current-patch-color = 14.8 or current-patch-color = 44.6 or current-patch-color = 34.3 [set turtles-safe (turtles-safe + 1) die
-      if kid-parent != nobody [ask one-of turtles with [kid-parent = [who] of myself ][die]]]
   ; on stairs and can only walk half as fast, this only happens outside the yellow room at the south side
   current-patch-color = 103.5 [fd 0.5]
   )
@@ -421,10 +465,10 @@ debug?
 -1000
 
 OUTPUT
-1053
-12
-1664
-188
+977
+10
+1588
+186
 12
 
 SLIDER
@@ -436,7 +480,7 @@ population_visitors
 population_visitors
 0
 500
-156.0
+51.0
 1
 1
 NIL
@@ -451,7 +495,7 @@ population_staff
 population_staff
 0
 100
-45.0
+38.0
 1
 1
 NIL
@@ -609,7 +653,37 @@ CHOOSER
 same_exit
 same_exit
 "above right exit" "main exit" "below left exit"
-2
+0
+
+SLIDER
+247
+552
+496
+585
+percentage_visitors_with_familiarity
+percentage_visitors_with_familiarity
+0
+100
+10.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+790
+375
+962
+408
+percentage_female
+percentage_female
+0
+100
+100.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
